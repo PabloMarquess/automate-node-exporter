@@ -1,43 +1,37 @@
 #!/bin/bash
 
-# Determina a arquitetura do sistema
-architecture=$(uname -m)
+# Detect the architecture
+ARCH=$(uname -m)
 
-# Define a URL base para o download
-base_url="https://github.com/prometheus/node_exporter/releases/download/v1.8.1"
-
-# Escolhe o arquivo correto baseado na arquitetura
-case $architecture in
-  x86_64)
-    file="node_exporter-1.8.1.linux-amd64.tar.gz"
-    ;;
-  aarch64)
-    file="node_exporter-1.8.1.linux-arm64.tar.gz"
-    ;;
-  *)
-    echo "Arquitetura não suportada: $architecture"
+# Determine the appropriate download link
+if [ "$ARCH" == "x86_64" ]; then
+    NODE_EXPORTER_URL="https://github.com/prometheus/node_exporter/releases/download/v1.8.1/node_exporter-1.8.1.linux-amd64.tar.gz"
+    NODE_EXPORTER_DIR="node_exporter-1.8.1.linux-amd64"
+elif [ "$ARCH" == "aarch64" ]; then
+    NODE_EXPORTER_URL="https://github.com/prometheus/node_exporter/releases/download/v1.8.1/node_exporter-1.8.1.linux-arm64.tar.gz"
+    NODE_EXPORTER_DIR="node_exporter-1.8.1.linux-arm64"
+else
+    echo "Unsupported architecture: $ARCH"
     exit 1
-    ;;
-esac
+fi
 
-# Download do Node Exporter
+# Download and extract node exporter
 cd /tmp
-wget "${base_url}/${file}"
+wget $NODE_EXPORTER_URL -O node_exporter.tar.gz
+tar -xvf node_exporter.tar.gz
+cd $NODE_EXPORTER_DIR
 
-# Descompacta o arquivo
-tar -xzf "${file}"
+# Move node_exporter binary to /usr/local/bin
+sudo mv node_exporter /usr/local/bin/
 
-# Move o binário para o local adequado
-sudo mv "node_exporter-1.8.1.linux-${architecture}/node_exporter" /usr/local/bin
-
-# Cria o usuário node_exporter
+# Create node_exporter user
 sudo useradd node_exporter --no-create-home --shell /bin/false
 
-# Ajusta as permissões
+# Set ownership of node_exporter binary
 sudo chown node_exporter:node_exporter /usr/local/bin/node_exporter
 
-# Cria o serviço systemd
-cat <<EOF | sudo tee /etc/systemd/system/node_exporter.service
+# Create the systemd service file
+sudo bash -c 'cat << EOF > /etc/systemd/system/node_exporter.service
 [Unit]
 Description=Node Exporter
 Wants=network-online.target
@@ -51,9 +45,9 @@ ExecStart=/usr/local/bin/node_exporter
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOF'
 
-# Recarrega o systemd, habilita e inicia o serviço
+# Reload systemd, enable and start node_exporter service
 sudo systemctl daemon-reload
 sudo systemctl enable node_exporter
 sudo systemctl start node_exporter
